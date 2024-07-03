@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:moyoung_ble_plugin/moyoung_ble.dart';
 
+import '../components/base/CustomGestureDetector.dart';
+
 class LanguagePage extends StatefulWidget {
   final MoYoungBle blePlugin;
 
@@ -17,6 +19,7 @@ class _LanguagePage extends State<LanguagePage> {
   List<int> _languageType = [];
   int _type = -1;
 
+  CrossFadeState displayState1 = CrossFadeState.showSecond;
 
   @override
   Widget build(BuildContext context) {
@@ -24,33 +27,48 @@ class _LanguagePage extends State<LanguagePage> {
         home: Scaffold(
             appBar: AppBar(
               title: const Text("Language"),
+              automaticallyImplyLeading: false, // 禁用默认的返回按钮
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  Navigator.pop(context); // 手动处理返回逻辑
+                },
+              ),
             ),
-            body: Center(child: ListView(children: [
-              Text("languageType: $_languageType"),
-              Text("type: $_type"),
-
-              ElevatedButton(
-                  child: const Text('sendDeviceLanguage()'),
-                  onPressed: () => widget.blePlugin.sendDeviceLanguage(DeviceLanguageType.languageChinese)),
-              ElevatedButton(
-                  child: const Text('queryDeviceVersion()'),
-                  onPressed: () async {
-                    int type = await widget.blePlugin.queryDeviceVersion;
+            body: Center(
+                child: ListView(children: [
+              CustomGestureDetector(
+                  title: 'Device Language',
+                  childrenBCallBack: (CrossFadeState newDisplayState) {
                     setState(() {
-                      _type = type;
+                      displayState1 = newDisplayState;
                     });
-                  }),
-              ElevatedButton(
-                  child: const Text('queryDeviceLanguage()'),
-                  onPressed: () async {
-                    _deviceLanguageBean = await widget.blePlugin.queryDeviceLanguage;
-                    setState(() {
-                    _languageType = _deviceLanguageBean!.languageType;
-                    _type = _deviceLanguageBean!.type;
-                  });}),
-            ])
-            )
-        )
-    );
+                  },
+                  displayState: displayState1,
+                  children: <Widget>[
+                    Text("type: $_type", style: const TextStyle(height: 1.5, fontSize: 14, color: Colors.grey)),
+                    ElevatedButton(
+                        child: const Text('sendDeviceLanguage()'),
+                        onPressed: () => widget.blePlugin.sendDeviceLanguage(DeviceLanguageType.languageChinese)),
+                    ElevatedButton(
+                        child: const Text('queryDeviceVersion()'),
+                        onPressed: () async {
+                          int type = await widget.blePlugin.queryDeviceVersion;
+                          setState(() {
+                            _type = type;
+                          });
+                        }),
+                    Text("languageType: $_languageType", style: const TextStyle(height: 1.5, fontSize: 14, color: Colors.grey)),
+                    ElevatedButton(
+                        child: const Text('queryDeviceLanguage()'),
+                        onPressed: () async {
+                          _deviceLanguageBean = await widget.blePlugin.queryDeviceLanguage;
+                          setState(() {
+                            _languageType = _deviceLanguageBean!.languageType;
+                            _type = _deviceLanguageBean!.type;
+                          });
+                        })
+                  ])
+            ]))));
   }
 }

@@ -36,7 +36,16 @@ class _FlutterContactsExampleState extends State<FlutterContactsExample> {
   @override
   Widget build(BuildContext context) => MaterialApp(
       home: Scaffold(
-          appBar: AppBar(title: const Text('flutter_contacts_example')),
+          appBar: AppBar(
+            title: const Text('flutter_contacts_example'),
+            automaticallyImplyLeading: false, // 禁用默认的返回按钮
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                Navigator.pop(context); // 手动处理返回逻辑
+              },
+            ),
+          ),
           body: _body()));
 
   Widget _body() {
@@ -62,6 +71,7 @@ class _FlutterContactsExampleState extends State<FlutterContactsExample> {
 
 class ContactPage extends StatelessWidget {
   final Contact contact;
+
   const ContactPage({Key? key, required this.contact}) : super(key: key);
 
   @override
@@ -70,9 +80,7 @@ class ContactPage extends StatelessWidget {
       body: Column(children: [
         Text('First name: ${contact.name.first}'),
         Text('Last name: ${contact.name.last}'),
-        Text(
-            'Phone number: ${contact.phones.isNotEmpty ? contact.phones.first.number : '(none)'}'),
-        Text(
-            'Email address: ${contact.emails.isNotEmpty ? contact.emails.first.address : '(none)'}'),
+        Text('Phone number: ${contact.phones.isNotEmpty ? contact.phones.first.number : '(none)'}'),
+        Text('Email address: ${contact.emails.isNotEmpty ? contact.emails.first.address : '(none)'}'),
       ]));
 }

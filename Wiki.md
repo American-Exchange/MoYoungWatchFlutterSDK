@@ -163,10 +163,8 @@ ConnectDeviceBean :
 
 Synchronize the time of your phone and watch.
 
-timestamp is an optional parameter and defaults to the current time.
-
 ```dart
-_blePlugin.queryTime(int? timestamp);
+_blePlugin.queryTime;
 ```
 
 ## 4.2 Sets Time System
@@ -263,18 +261,6 @@ Gets the current firmware version of the watch.
 String firmwareVersion = await _blePlugin.queryFirmwareVersion;
 ```
 
-## 5.3 Gets customize version
-
-> [!CAUTION]
->
-> The method only supports JM iTOUCH Active watches and Active 3 watches.
-
-Gets the firmware version of the custom watch.
-
-```dart
-String customizeVersion = await _blePlugin.queryCustomizeVersion;
-```
-
 ## 5.3 Check firmware
 
 Gets the latest version information.
@@ -328,13 +314,40 @@ OTAType：
 | betaUpgradeType   | int        | beta upgrade      |
 | forcedUpdateType  | int        | forced update     |
 
-## 5.4 Satrt OTA<Android partial support>
+## 5.4 Gets Hs OTA address
+
+The upgrade mode of HS watches is different from the normal mode. It has a separate broadcast name and Mac address. The Mac address is obtained through queryHsOtaAddress. Before upgrading, you need to query the Mac address of the watch firmware upgrade mode. You can save this Mac address and upgrade again after the upgrade fails.
+
+```dart
+String hsDfuAddress = await _blePlugin.queryHsOtaAddress;
+```
+
+## 5.5 Enable Hs OTA
+
+After the watch enters the firmware upgrade mode, it will disconnect the Bluetooth connection from the normal mode. After the Bluetooth connection is disconnected, the firmware upgrade will be initiated. After the watch enters firmware upgrade mode, no Bluetooth connection in normal mode can be initiated, otherwise the firmware upgrade will fail.
+
+```dart
+_blePlugin.enableHsOta;
+```
+
+## 5.6 Gets Nordic/Goodix Watch OTA status
+
+Check whether the watch is in the DFU data transmission state. In the new version of firmware, the watch will restart multiple times during the DFU process. When the watch is in the DFU state, avoid sending other instructions to the watch.
+
+```dart
+int deviceDfuStatus = await _blePlugin.queryDeviceOtaStatus;
+```
+
+## 5.4 Start OTA
 
 The firmware upgrade is divided into four upgrade methods.The calling method is as follows:
 
 Note:
-1. There is no first and second upgrade methods on the ios side.
-2. Before starting the firmware upgrade, you need to ensure that the watch battery is above 50%.
+
+1. Before starting the firmware upgrade, you need to ensure that the watch battery is above 50%.
+2. The mac address used by the HS platform needs to be obtained separately. If the current upgrade platform is HS, you need to call queryHsOtaAddress to obtain the HS OTA address, and call enableHsOta to start before starting the firmware upgrade.
+3. If the platform is Nordic/Goodix, the queryDeviceOtaStatus interface is provided during OTA, and the current OTA status can be queried.
+4. If the platform is realTek and the realTek library is already used within the project, upgrade errors may occur due to realTek library conflicts. You need to contact our developers to update the sdk.
 
 ```dart
 _blePlugin.startOTA(OtaBean info);
@@ -353,16 +366,18 @@ OTAMcuType:
 
 | type | value | value description         |
 | :-------- | :---- | :------------------------ |
-| startHsOta  | 1     | The first way to upgrade  |
-| startRtkOta | 2     | The second way to upgrade |
-| startOta  | 3     | The third way to upgrade  |
-| startDefaultOta   | 4     | The four way to upgrade   |
-| startSifliOta | 5 | Sifli firmware upgrade |
-| startJieliOta | 6 | Jieli firmware upgrade |
+| startOta | 0     | default OTA way |
+| startNordicOta | 1    | Nordic OTA way |
+| startHsOta | 2    | Hs OTA way |
+| startRtkOta | 3    | Rtk OTA way |
+| startGoodixOta | 4 | Goodix  OTA way |
+| startSifliOta | 5 | Sifli  OTA way |
+| startJieliOta | 6 | Jieli  OTA way |
 
-the upgrade method is determined according to the mcu value in the firmware version information of the current watch.
+the upgrade method is determined according to the mcu value in the firmware version information of the current watch:
 
-The mcu value of the firmware version is obtained by the checkFirmwareVersion method.
+1. Generally speaking, when the watch is scanning, the BleScanBean can be obtained through bleScanEveStm monitoring, and the current watch platform can be determined according to the platform field;
+2. In special cases, if the current watch platform cannot be obtained, you can use checkFirmwareVersion to obtain the mcu value to determine the current watch platform, as follows:
 
 ```dart
 switch (mcu) {
@@ -370,7 +385,7 @@ switch (mcu) {
   case 8:
   case 9:
     oTAType = OTAMcuType.startHsOta;
-        ///The first way to upgrade,<Only android support>
+        ///The HS way to upgrade,<Only android support>
     await _blePlugin
         .startOTA(OtaBean(address: address, type: OTAMcuType.startHsOta));
     break;
@@ -379,15 +394,15 @@ switch (mcu) {
   case 71:
   case 72:
     oTAType = OTAMcuType.startRtkOta;
-        ///The second way to upgrade,<Only android support>
+        ///The Rtk way to upgrade,<Only android support>
     await _blePlugin
         .startOTA(OtaBean(address: address, type: OTAMcuType.startRtkOta));
     break;
   case 10:
-    oTAType = OTAMcuType.startOta;
-        ///The third way to upgrade
+    oTAType = OTAMcuType.startGoodixOta;
+        ///The Goodix way to upgrade
     await _blePlugin
-        .startOTA(OtaBean(address: address, type: OTAMcuType.startOta));
+        .startOTA(OtaBean(address: address, type: OTAMcuType.startGoodixOta));
     break;
     case 5:
         _oTAType = OTAMcuType.startSifliOta;
@@ -398,17 +413,15 @@ switch (mcu) {
         await widget.blePlugin.startOTA(OtaBean(address: address, type: 		       		OTAMcuType.startJieliOta));
         break;
   default:
-    oTAType = OTAMcuType.startDefaultOta;
-        ///The four way to upgrade
+    oTAType = OTAMcuType.startNordicOta;
+        ///The Nordic way to upgrade
     await _blePlugin
-        .startOTA(OtaBean(address: address, type: OTAMcuType.startDefaultOta));
+        .startOTA(OtaBean(address: address, type: OTAMcuType.startNordicOta));
     break;
 }
 ```
 
-Note: When it is the first upgrade method, the address uses the mac address in the OTA upgrade mode obtained through _blePlugin.queryDeviceOtaStatus;
-
-## 5.5 Abort OTA<Android partial support>
+## 5.5 Abort OTA
 
 Firmware abort is divided into three methods. Among them, the third upgrade method and the fourth upgrade method share a suspension method
 
@@ -424,52 +437,6 @@ _blePlugin.abortOTA(OTAMcuType);
 
 ```dart
 int deviceDfuStatus = await _blePlugin.queryDeviceOtaStatus;
-```
-
-## 5.7 Gets Hs OTA address
-
-Get the mac address in OTA mode.
-
-```dart
-String hsDfuAddress = await _blePlugin.queryHsOtaAddress;
-```
-
-## 5.8 Enable Hs OTA
-
-```dart
-_blePlugin.enableHsOta;
-```
-
-## 5.9 Gets Goodix OTA type
-
-```dart
-int type = await _blePlugin.queryOtaType;
-```
-
-## 5.10 Sifli Start OTA
-
-Sifli watch starts firmware upgrade, parameter is the path of upgrade file.
-
-Sifli watches cannot stop firmware upgrades.
-
-```dart
-_widget.blePlugin.sifliStartOTA(upgradeFilePath)
-```
-
-## 5.11 Jieli Start OTA
-
-Jieli watch starts firmware upgrade.
-
-```dart
-_widget.blePlugin.jieliStartOTA
-```
-
-## 5.12 Jieli Abort OTA
-
-Jieli watch stops firmware upgrade.
-
-```dart
-_widget.blePlugin.jieliAbortOTA
 ```
 
 # 6 Battery
@@ -519,7 +486,7 @@ DeviceBatteryType:
 
 Gets the current battery of the watch. When the battery level of the watch exceeds 100, it means the watch is charging.
 
-The result is returned through the data stream deviceBatteryEveStm and stored in the deviceBattery field in "event".
+The result is returned through the data stream deviceBatteryEveStm and stored in the deviceBattery field in "DeviceBatteryBean".
 
 ```dart
 _blePlugin.queryDeviceBattery;
@@ -527,7 +494,7 @@ _blePlugin.queryDeviceBattery;
 
 ## 6.3 Subscription battery
 
-When the battery of the watch changes, the result is returned through the data stream deviceBatteryEveStm and saved in the subscribe field in "event".
+When the battery of the watch changes, the result is returned through the data stream deviceBatteryEveStm and saved in the subscribe field in "DeviceBatteryBean".
 
 ```dart
 _blePlugin.subscribeDeviceBattery;
@@ -780,20 +747,6 @@ Gets classification statistics for the past two days. The query result will be o
 _blePlugin.queryStepsDetail(StepsDetailDateType);
 ```
 
-## 9.6 Gets action details
-
-> [!CAUTION]
->
-> The method only supports JM iTOUCH Active watches and Active 3 watches.
-
-Get half-hour counts of steps, distance, and calories throughout the day.
-
-The query result will be obtained through the stepsDetailEveStm listening stream and saved in "event" as the ActionDetailsBean object.
-
-```dart
-_blePlugin.queryActionDetails(StepsDetailDateType);
-```
-
 
 
 # 10 Sleep
@@ -890,6 +843,7 @@ Use yesterdaySleep and dayBeforeYesterdaySleep parameters.
 
 | value                 | value type | value description |
 | :-------------------- | :--------- | :---------------- |
+| today                 | int        | 0                 |
 | yesterday             | int        | 1                 |
 | theDayBeforeYesterday | int        | 2                 |
 
@@ -1095,28 +1049,6 @@ TrainingDayInfoBean:
 
 ```dart
 TrainingDayInfoBean trainingDay = _blePlugin.queryTrainingDay;
-```
-
-## 13.9 Sets and obtain exercise target reminder switch status
-
-```dart
-_blePlugin.sendGoalsRemindState(GoalsRemindStateBean);
-```
-
-Parameter Description :
-
-GoalsRemindStateBean:
-
-| value          | value type | value description      |
-| -------------- | ---------- | ---------------------- |
-| stepsEnable    | bool       | distanceEnable         |
-| caloriesEnable | bool       | calories enable status |
-| distanceEnable | bool       | distance enable status |
-
-## 13.10 Gets exercise target reminder switch status
-
-```dart
-GoalsRemindStateBean goalsRemindStateBean = _blePlugin.queryGoalsRemindState;
 ```
 
 # 14 Watchface
@@ -1638,7 +1570,8 @@ RepeatMode：
 ## 15.2 Sets alarm
 
 1. The old watch fixed three alarm clocks, can not be added and deleted.
-2. The new watch has up to 8 alarms that can be added and removed.
+2. The new watch has up to 8 alarms that can be added and removed.(new)
+3. The alarm clock repeatMode is set by adding the RepeatMode values. For example, if you need to set Monday + Tuesday + Wednesday to repeat, then the specific value of repeatMode = monday+tuesday+wednesday
 
 ```dart
 _blePlugin.sendNewAlarm(AlarmClockBean);
@@ -1665,6 +1598,8 @@ _blePlugin.deleteAllNewAlarm();
 ## 16.1 Sets the watch language
 
 Sets the language of the watch. When setting the language, the language version will be set. Simplified Chinese is set to the Chinese version, and non-simplified Chinese is set to the international version.
+
+Before setting the language, you need to obtain the currently supported watch language through the queryDeviceLanguage interface and then set it accordingly.
 
 ```dart
 _blePlugin.sendDeviceLanguage(DeviceLanguageType);
@@ -1729,6 +1664,8 @@ Callback Description:
 
 # 17 Notification
 
+The watch supports the Do Not Disturb period. Do not display message push and sedentary reminders during the time.
+
 ## 17.1 Sets other message state<Only android support>
 
 Enable or disable other notifications.
@@ -1751,9 +1688,13 @@ Gets the message types supported by the watch.
 List<int> messageType = _blePlugin.queryMessageList;
 ```
 
-## 17.4 Sets message
+## 17.4 Sets message<Only android support>
 
-To send various types of message content to the watch, obtain the firmware version of the watch first.
+For Android message push, you need to implement the message push logic on the mobile phone by yourself. The specific steps of message push:
+
+1. Get the supported message push types: get it through the queryMessageList interface;
+2. Obtain the watch firmware version: obtain it through the queryFirmwareVersion interface;
+3. Set the message push interface: call the sendMessage interface and send the corresponding message push according to the supported message push type.
 
 ```dart
 _blePlugin.sendMessage(MessageBean);
@@ -1834,12 +1775,32 @@ BleMessageType:
 | mormaiiSmartwatches | int        | 54                |
 | other               | int        | 128               |
 
-## 17.5 Sets push notifications(old)<Only ios support>
+## 17.5 Sets push notifications<Only ios support>
 
-Enable or disable other push notifications
+For ios message push, after the connection is paired, the native SDK will automatically process the message push. The specific steps for message push are:
+
+1. Get the supported message push types: get it through the queryMessageList interface;
+2. Call the setNotification interface to set the message push type supported by the watch.
+
+Note: The watch supports two message push types. The corresponding setNotification interface data interface should be selected according to the watch version to pass parameters;
+
+**old version:**
+
+Set the message push types that the watch should support based on the supported message push types.
 
 ```
 _blePlugin.setNotification(List<int> NotificationType);
+```
+
+**new version:**
+
+You need to get the supported message types first and create an array of the same length from the array of message types. The positions in the array are important, and each position represents a different message type. If you want to set a message, you simply set the corresponding number in the array to 0 or 1,0 for off and 1 for on.
+
+```dart
+List<int> list = List.filled(messageType.length, 0, growable: false);
+list[2] = 1;
+list[3] = 1;
+_blePlugin.setNotification(list);
 ```
 
 Parameter Description :
@@ -1905,9 +1866,9 @@ NotificationType:
 | mormaiiSmartwatches | int        | 54                |
 | other               | int        | 128               |
 
-## 17.6 Gets push notifications(old)<Only ios support>
+## 17.6 Gets push notifications<Only ios support>
 
-Returns an object of type NotificationBean.
+Get the supported message push type set. The old and new versions use the same interface to return data.
 
 ```dart
 NotificationBean notificationBean = await _blePlugin.getNotification;
@@ -1920,26 +1881,20 @@ Callback NotificationBean:
 | isNew          | bool                | Determine if the data is new to the device                   |
 | list           | List<int>           | Older devices return a list of supported message types, and newer devices return a list of 0's and 1's |
 
-## 17.7 Sets push notifications(new)<Only ios support>
+## 17.7 Sets call listener<Only android support>
 
-You need to get the supported message types first and create an array of the same length from the array of message types. The positions in the array are important, and each position represents a different message type. If you want to set a message, you simply set the corresponding number in the array to 0 or 1,0 for off and 1 for on.
+Android uses the watch to make calls. The app can obtain the phone number dialed by the watch through callNumberEveStm monitoring, so as to make the call logic by itself.
 
-```dart
-List<int> list = List.filled(messageType.length, 0, growable: false);
-list[2] = 1;
-list[3] = 1;
-_blePlugin.setNotification(list);
+```
+_blePlugin.callNumberEveStm.listen((String event) {
+  if (!mounted) return;
+  setState(() {
+    _number = event;
+  });
+});
 ```
 
-## 17.8 Gets push notifications(old)<Only ios support>
-
-Returns an object of type NotificationBean.
-
-```dart
-NotificationBean notificationBean = _blePlugin.getNotification;
-```
-
-## 17.9 End call<Only android support>
+## 17.8 End call<Only android support>
 
 When the watch receives a push of a phone type message, the watch will vibrate for a fixed time. Call this interface to stop the watch from vibrating when the watch answers the call or hangs up the call.
 
@@ -1947,15 +1902,19 @@ When the watch receives a push of a phone type message, the watch will vibrate f
 _blePlugin.endCall;
 ```
 
-## 17.10 Sets call contact name<Only android support>
+## 17.9 Sets call contact name<Only android support>
 
 Only send the name of the outgoing contact. The incoming contact still uses sendMessage.
+
+The contact name can be set for the call made by the watch through the sendCallContactName interface.
 
 ```dart
 _blePlugin.sendCallContactName("name");
 ```
 
-## 17.11 Call notification<Only android support>
+## 17.10 Call notification<Only android support>
+
+**Special handling, used for internal testing.**
 
 Call notifications are turned off by default, so you can turn them on or off using this method.
 
@@ -1972,6 +1931,14 @@ _blePlugin.enableIncomingNumber(true);
 > 3. Applications cannot listen to incoming calls after they are killed
 
 # 18 Sedentary reminder
+
+Sedentary reminder conditions:
+
+1. The time during which the sedentary reminder must be set (valid period: 10:00-22:00);
+2. If it is detected that it is not worn for 10 consecutive minutes, there will be no reminder and the timer will restart;
+3. While charging, there will be no reminder while sleeping;
+4. The number of steps within an hour is less than 50;
+5. The watch supports the Do Not Disturb period. Do not display message push and sedentary reminders during the time.
 
 ## 18.1 Sets sedentary reminder
 
@@ -1992,6 +1959,8 @@ bool enable = await _blePlugin.querySedentaryReminder;
 ## 18.3 Sets sedentary reminder time
 
 Sets the effective period of sedentary reminder.
+
+Note: Setting the sedentary reminder period is a test command and is recommended to be used only during testing. The official version is invalid.
 
 ```dart
 _blePlugin.sendSedentaryReminderPeriod(SedentaryReminderPeriodBean info);
@@ -2545,6 +2514,8 @@ _blePlugin.queryHistoryBloodOxygen;
 
 ## 23.1 Sets photo monitor listener
 
+When the photo button on the photo interface of the watch is clicked, the return value will be passed through this monitor. This operation only indicates that the camera button on the watch has been clicked. The specific function of controlling the camera on the mobile phone needs to be implemented by yourself.
+
 ```dart
 _blePlugin.cameraEveStm.listen(
   (CameraBean event) {
@@ -2569,30 +2540,18 @@ CameraBean:
 
 ## 23.2 Enable camera view
 
+Click this button to control the watch to enter the camera interface.
+
 ```
 _blePlugin.enterCameraView;
 ```
 
 ## 23.3 Exit camera view
 
+Click this button to control the watch to exit the camera interface.
+
 ```
 _blePlugin.exitCameraView;
-```
-
-## 23.4 Sets time-lapse photo
-
-Unit: second.
-
-```dart
-_blePlugin.sendDelayTaking(100));
-```
-
-## 23.5 Gets the time of a time-lapse photo
-
-The data is returned by listening to the cameraEveStm.
-
-```dart
-_blePlugin.queryDelayTaking;
 ```
 
 # 24 Mobile phone related operations
@@ -2812,7 +2771,7 @@ MenstrualCycleBean：
 | -------------------- | ---------- | ------------------------------------------------------------ |
 | physiologcalPeriod   | int        | Menstrual cycle (unit: day)1                                 |
 | menstrualPeriod      | int        | Menstrual period (unit: day)                                 |
-| startDate            | String     | menstrual cycle start time(Month and day are used; all other years, hours, minutes, and seconds are the current time) |
+| startDate            | String     | menstrual cycle start time(The startDate data returned uses the month and day.The year, hour, minute, and second are all the current time.).  The menstrual cycle start time mainly uses the month and day in the time, and there is no need to pay attention to the specific time. |
 | menstrualReminder    | bool       | Menstrual start reminder time (the day before the menstrual cycle reminder) |
 | ovulationReminder    | bool       | Ovulation reminder (a reminder the day before ovulation)     |
 | ovulationDayReminder | bool       | Ovulation Day Reminder (Reminder the day before ovulation)   |
@@ -3351,7 +3310,15 @@ ContactConfigBean：
 int contactCount = _blePlugin.queryContactCount;
 ```
 
-## 44.5 Sets contact information
+## 44.5 Gets whether the number supports special symbols
+
+Whether the telephone number supports the three symbols +*#.
+
+```
+int contactCount = _blePlugin.queryContactNumberSymbol;
+```
+
+## 44.6 Sets contact information
 
 Sets the contact, the result is obtained through contactEveStm.
 
@@ -3379,7 +3346,7 @@ Precautions:
 - Contacts sent to the watch face, must have an avatar.
 - id has size limit. The maximum value of id can be viewed through count in the return value of _blePlugin.checkSupportQuickContact, and cannot be greater than or equal to the queried value.
 
-## 44.6 Sets contact avatar information
+## 44.7 Sets contact avatar information
 
 Sets the contact avatar  , the result is obtained through contactAvatarEveStm.
 
@@ -3387,7 +3354,7 @@ Sets the contact avatar  , the result is obtained through contactAvatarEveStm.
 _blePlugin.sendContactAvatar(ContactBean info);
 ```
 
-## 44.7 Delete contacts information
+## 44.8 Delete contacts information
 
 Delete contact information based on contact id.
 
@@ -3395,7 +3362,7 @@ Delete contact information based on contact id.
 _blePlugin.deleteContact(int id);
 ```
 
-## 44.8 Delete contacts avatar  information
+## 44.9 Delete contacts avatar  information
 
 Delete contact avatar   information based on contact id.
 
@@ -3403,7 +3370,7 @@ Delete contact avatar   information based on contact id.
 _blePlugin.deleteContactAvatar(int id);
 ```
 
-## 44.9 clear contacts information
+## 44.10 clear contacts information
 
 ```dart
 _blePlugin.clearContact();
